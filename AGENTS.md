@@ -1,0 +1,6 @@
+# AGENTS.md
+
+- After every change, run `npm run fmt`.
+- Minimal vertical spacing: avoid extra blank lines within functions.
+- No comments: omit comments unless required to explain non-obvious logic.
+- Self-documenting: use descriptive names so the logic is clear without annotations.

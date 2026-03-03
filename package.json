@@ -1,0 +1,32 @@
+{
+  "name": "pi-restrict-bash",
+  "version": "0.1.0",
+  "description": "Opinionated bash tool restrictions for Pi",
+  "keywords": [
+    "pi-package"
+  ],
+  "license": "GPL-2.0-only",
+  "author": "Stipe Kotarac <stipe@kotarac.net>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kotarac/pi-restrict-bash.git"
+  },
+  "type": "module",
+  "files": [
+    "extensions/"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions/restrict-bash.ts"
+    ]
+  },
+  "scripts": {
+    "fmt": "prettier --write ."
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "prettier": "^3.8.1"
+  }
+}
