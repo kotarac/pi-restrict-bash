@@ -12,6 +12,10 @@
     "url": "https://github.com/kotarac/pi-restrict-bash.git"
   },
   "type": "module",
+  "engines": {
+    "node": ">=24",
+    "pnpm": ">=10"
+  },
   "files": [
     "extensions/"
   ],
@@ -21,12 +25,16 @@
     ]
   },
   "scripts": {
-    "fmt": "prettier --write ."
+    "fmt": "biome check --write .",
+    "tsc": "tsc -p tsconfig.json --noEmit"
   },
   "peerDependencies": {
     "@mariozechner/pi-coding-agent": "*"
   },
   "devDependencies": {
-    "prettier": "^3.8.1"
+    "@biomejs/biome": "^2.4.5",
+    "@mariozechner/pi-coding-agent": "*",
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.2"
   }
 }
