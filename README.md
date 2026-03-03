@@ -1,8 +1,8 @@
 # pi-restrict-bash
 
-Opinionated restrictions for Pi’s built-in `bash` tool.
+Opinionated restrictions for [Pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent)’s built-in `bash` tool.
 
-The extension (`extensions/restrict-bash.ts`) blocks common “escape hatches”, risky shell features, and context-exploding commands, nudging the agent toward Pi’s structured tools (`read`, `edit`, `write`) and `rg` for searching/listing.
+The extension blocks common “escape hatches”, risky shell features, and context-exploding commands, nudging the agent toward Pi’s structured tools (`read`, `edit`, `write`) and `rg` for searching/listing.
 
 ## What it does
 
@@ -43,6 +43,14 @@ Try the package for a single run:
   - `pi -e git:github.com/kotarac/pi-restrict-bash`
 - From npm:
   - `pi -e npm:pi-restrict-bash`
+
+## Notes
+
+- This is not a replacement for proper sandboxing. It only applies guardrails to Pi tool usage and serves as guidance for LLMs; it does not make executing untrusted code safe.
+- You’ll likely want to pair this with system instructions that strongly prefer Pi’s structured tools (`read`, `edit`, `write`), and when searching/listing prefer `rg` (for example `rg`, `rg --glob`, `rg --files`, `rg --files --glob`). Treat `bash` as a last resort for everything else.
+- Many restrictions are about keeping tool output and shell behavior predictable so it doesn’t explode the LLM context (for example `find`/`ls`/`tree`, pipelines, redirects, and wrapper commands).
+- This extension is intentionally strict. If you need to loosen rules, fork and adjust `forbiddenRules` / `blockedTools` in `extensions/restrict-bash.ts`.
+- Extensions execute with full system permissions. Only install code you trust.
 
 ## License
 
