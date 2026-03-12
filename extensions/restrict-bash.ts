@@ -98,7 +98,8 @@ const forbiddenRules: ForbiddenRule[] = [
   },
   {
     pattern: [searchCommands],
-    reason: (matchTokens) => `The \`${matchTokens[0]}\` search/listing command is blocked in the \`bash\` tool. Use \`rg\`, \`rg --glob\`, \`rg --files\`, or \`rg --files --glob\` instead.`,
+    reason: (matchTokens) =>
+      `The \`${matchTokens[0]}\` search/listing command is blocked in the \`bash\` tool. Use \`rg '<text-pattern>'\` (or \`rg --glob '<path-glob>' '<text-pattern>'\`) for search, and \`rg --files\` (or \`rg --files --glob '<path-glob>'\`) for listing.`,
   },
   {
     pattern: [shellCommands],
@@ -108,15 +109,15 @@ const forbiddenRules: ForbiddenRule[] = [
 const blockedTools = [
   {
     toolName: 'grep',
-    reason: 'The `grep` tool is blocked. Use `rg` or `rg --glob` instead.',
+    reason: "The `grep` tool is blocked. Use `rg '<text-pattern>'` or `rg --glob '<path-glob>' '<text-pattern>'` instead.",
   },
   {
     toolName: 'find',
-    reason: 'The `find` tool is blocked. Use `rg --files` or `rg --files --glob` instead.',
+    reason: "The `find` tool is blocked. Use `rg --files` or `rg --files --glob '<path-glob>'` instead.",
   },
   {
     toolName: 'ls',
-    reason: 'The `ls` tool is blocked. Use `rg --files` or `rg --files --glob` instead.',
+    reason: "The `ls` tool is blocked. Use `rg --files` or `rg --files --glob '<path-glob>'` instead.",
   },
 ]
 
