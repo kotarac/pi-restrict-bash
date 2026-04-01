@@ -1,6 +1,6 @@
 {
   "name": "pi-restrict-bash",
-  "version": "1.0.4",
+  "version": "2.0.0",
   "description": "Opinionated bash tool restrictions for Pi",
   "keywords": [
     "pi-package"
