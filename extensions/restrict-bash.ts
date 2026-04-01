@@ -1,3 +1,4 @@
+import { posix } from 'node:path'
 import type { ExtensionAPI } from '@mariozechner/pi-coding-agent'
 
 type PatternPart = string | string[]
@@ -13,7 +14,49 @@ type SegmentResult = {
 
 const searchCommands = ['fd', 'find', 'grep', 'ls', 'tree']
 const shellCommands = ['bash', 'sh', 'zsh']
-const wrapperCommands = ['eval', 'exec', 'nohup', 'timeout']
+const wrapperCommands = ['eval', 'exec', 'nohup', 'timeout', 'time', 'watch', 'stdbuf']
+const commandRunnerCommands = ['bunx', 'npx', 'pnpx', 'uvx']
+const commandRunnerSubcommands: string[][] = [
+  ['pnpm', 'dlx'],
+  ['yarn', 'dlx'],
+  ['npm', 'exec'],
+  ['bun', 'x'],
+  ['uv', 'tool', 'run'],
+  ['npm', 'create'],
+  ['npm', 'init'],
+  ['yarn', 'create'],
+  ['pnpm', 'create'],
+  ['bun', 'create'],
+]
+const commandRunnerPositionalSkipRules: Record<string, { token: string; consumesNextToken: boolean }[]> = {
+  npm: [
+    { token: 'workspace', consumesNextToken: true },
+    { token: 'workspaces', consumesNextToken: false },
+  ],
+  yarn: [
+    { token: 'workspace', consumesNextToken: true },
+    { token: 'workspaces', consumesNextToken: false },
+    { token: 'foreach', consumesNextToken: false },
+  ],
+}
+const commandRunnerFlagRules: Record<string, { booleanFlags: string[]; valueFlags: string[] }> = {
+  npm: {
+    booleanFlags: ['--silent', '--quiet', '-s'],
+    valueFlags: ['--prefix', '--cache', '--registry', '--userconfig', '--workspace'],
+  },
+  yarn: {
+    booleanFlags: ['--silent'],
+    valueFlags: ['--cwd'],
+  },
+  pnpm: {
+    booleanFlags: ['--silent'],
+    valueFlags: ['--filter'],
+  },
+  uv: {
+    booleanFlags: ['--verbose', '-v'],
+    valueFlags: ['--index-url'],
+  },
+}
 const readCommands = ['cat']
 const writeCommands = ['tee']
 const shellControlKeywords = ['if', 'then', 'fi', 'for', 'while', 'until', 'do', 'done', 'case', 'esac', 'function', 'select']
@@ -79,6 +122,10 @@ const forbiddenRules: ForbiddenRule[] = [
   {
     pattern: ['git', gitWriteCommands],
     reason: (matchTokens) => `The \`git ${matchTokens[1]}\` command is blocked in the \`bash\` tool.`,
+  },
+  {
+    pattern: [commandRunnerCommands],
+    reason: (matchTokens) => `The command runner \`${matchTokens[0]}\` is blocked in the \`bash\` tool because it can execute untrusted remote tools.`,
   },
   {
     pattern: ['nl'],
@@ -280,11 +327,20 @@ function isEnvironmentAssignment(token: string): boolean {
   return /^[A-Za-z_][A-Za-z0-9_]*=/.test(token)
 }
 
+function normalizeExecutableToken(token: string): string {
+  if (!token) return token
+  if (token === '.' || token === '..') return token
+  if (!token.includes('/')) return token
+  return posix.basename(token)
+}
+
 function getCommandTokens(tokens: string[]): string[] {
   let index = 0
   while (index < tokens.length && isEnvironmentAssignment(tokens[index])) index += 1
-  while (index < tokens.length && (tokens[index] === 'env' || tokens[index] === 'command')) {
-    if (tokens[index] === 'env') {
+  while (index < tokens.length) {
+    const normalizedToken = normalizeExecutableToken(tokens[index])
+    if (normalizedToken !== 'env' && normalizedToken !== 'command') break
+    if (normalizedToken === 'env') {
       index += 1
       while (index < tokens.length && tokens[index].startsWith('-')) index += 1
       while (index < tokens.length && isEnvironmentAssignment(tokens[index])) index += 1
@@ -293,7 +349,8 @@ function getCommandTokens(tokens: string[]): string[] {
     index += 1
     while (index < tokens.length && tokens[index].startsWith('-')) index += 1
   }
-  return tokens.slice(index)
+  if (index >= tokens.length) return []
+  return [normalizeExecutableToken(tokens[index]), ...tokens.slice(index + 1)]
 }
 
 function isSedInPlace(tokens: string[]): boolean {
@@ -361,6 +418,14 @@ function getUnsupportedReason(tokens: string[]): string | undefined {
   return undefined
 }
 
+function getSubcommandScanEndIndex(tokens: string[]): number {
+  for (let index = 0; index < tokens.length; index += 1) {
+    if (tokens[index] !== '--') continue
+    return index
+  }
+  return tokens.length
+}
+
 function matchesPatternPart(token: string, part: PatternPart): boolean {
   if (typeof part === 'string') return token === part
   for (const value of part) {
@@ -369,11 +434,77 @@ function matchesPatternPart(token: string, part: PatternPart): boolean {
   return false
 }
 
+function getCommandRunnerPositionalSkipLength(tokens: string[], tokenIndex: number, scanEndIndex: number): number {
+  const skipRules = commandRunnerPositionalSkipRules[tokens[0]]
+  if (!skipRules) return 0
+  for (const skipRule of skipRules) {
+    if (tokens[tokenIndex] !== skipRule.token) continue
+    if (!skipRule.consumesNextToken) return 1
+    if (tokenIndex + 1 >= scanEndIndex) return 0
+    return 2
+  }
+  return 0
+}
+
+function getCommandRunnerFlagSkipLength(tokens: string[], tokenIndex: number, expectedToken: string, scanEndIndex: number): number {
+  const token = tokens[tokenIndex]
+  if (!token.startsWith('-')) return 0
+  if (token === '--') return 0
+  if (token.includes('=')) return 1
+  const flagRules = commandRunnerFlagRules[tokens[0]]
+  if (flagRules?.booleanFlags.includes(token)) return 1
+  if (flagRules?.valueFlags.includes(token)) {
+    if (tokenIndex + 1 >= scanEndIndex) return 1
+    return 2
+  }
+  if (tokenIndex + 1 >= scanEndIndex) return 1
+  const nextToken = tokens[tokenIndex + 1]
+  if (nextToken === expectedToken) return 1
+  if (nextToken.startsWith('-')) return 1
+  return 2
+}
+
+function matchesCommandRunnerSubcommand(tokens: string[], subcommandTokens: string[]): boolean {
+  if (tokens.length < subcommandTokens.length) return false
+  if (tokens[0] !== subcommandTokens[0]) return false
+  const scanEndIndex = getSubcommandScanEndIndex(tokens)
+  let tokenIndex = 1
+  for (let subcommandIndex = 1; subcommandIndex < subcommandTokens.length; subcommandIndex += 1) {
+    const expectedToken = subcommandTokens[subcommandIndex]
+    let matched = false
+    while (tokenIndex < scanEndIndex) {
+      const currentToken = tokens[tokenIndex]
+      if (currentToken === expectedToken) {
+        matched = true
+        tokenIndex += 1
+        break
+      }
+      const positionalSkipLength = getCommandRunnerPositionalSkipLength(tokens, tokenIndex, scanEndIndex)
+      if (positionalSkipLength > 0) {
+        tokenIndex += positionalSkipLength
+        continue
+      }
+      const flagSkipLength = getCommandRunnerFlagSkipLength(tokens, tokenIndex, expectedToken, scanEndIndex)
+      if (flagSkipLength > 0) {
+        tokenIndex += flagSkipLength
+        continue
+      }
+      return false
+    }
+    if (!matched) return false
+  }
+  return true
+}
+
 function getForbiddenReason(tokens: string[]): string | undefined {
   const unsupportedReason = getUnsupportedReason(tokens)
   if (unsupportedReason) return unsupportedReason
   const commandTokens = getCommandTokens(tokens)
   if (commandTokens.length === 0) return undefined
+  for (const commandRunnerSubcommand of commandRunnerSubcommands) {
+    if (!matchesCommandRunnerSubcommand(commandTokens, commandRunnerSubcommand)) continue
+    return `The command runner \`${commandRunnerSubcommand.join(' ')}\` is blocked in the \`bash\` tool because it can execute untrusted remote tools.`
+  }
   if (isSedInPlace(commandTokens)) {
     return 'The `sed -i` command is blocked in the `bash` tool.'
   }
