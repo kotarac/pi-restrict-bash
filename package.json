@@ -27,7 +27,10 @@
   "scripts": {
     "fmt": "biome check --write .",
     "test": "node --test",
-    "tsc": "tsc -p tsconfig.json --noEmit"
+    "tsc": "tsc -p tsconfig.json --noEmit",
+    "//plumbing": "",
+    "biome:migrate": "biome migrate --write",
+    "//end": ""
   },
   "peerDependencies": {
     "@mariozechner/pi-coding-agent": "*"
